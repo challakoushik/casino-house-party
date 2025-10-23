@@ -12,6 +12,8 @@ function TableScreenContent() {
   const searchParams = useSearchParams();
   const tableId = searchParams.get('id');
   const [table, setTable] = useState<Table | null>(null);
+  const [tables, setTables] = useState<Table[]>([]);
+  const [tablesLoading, setTablesLoading] = useState(false);
   const [players, setPlayers] = useState<Player[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -23,8 +25,35 @@ function TableScreenContent() {
       loadTableData();
       const interval = setInterval(loadTableData, 2000);
       return () => clearInterval(interval);
+    } else {
+      // Load list of all tables when no specific table ID
+      loadTablesData();
     }
   }, [tableId]);
+
+  const loadTablesData = async () => {
+    setTablesLoading(true);
+    try {
+      const [tablesRes, playersRes] = await Promise.all([
+        fetch('/api/tables'),
+        fetch('/api/players')
+      ]);
+
+      if (tablesRes.ok) {
+        const tablesData = await tablesRes.json();
+        setTables(tablesData);
+      }
+
+      if (playersRes.ok) {
+        const playersData = await playersRes.json();
+        setPlayers(playersData);
+      }
+    } catch (error) {
+      console.error('Failed to load tables data:', error);
+    } finally {
+      setTablesLoading(false);
+    }
+  };
 
   useEffect(() => {
     // Initialize Socket.IO connection
@@ -116,15 +145,99 @@ function TableScreenContent() {
   if (!tableId) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-green-900 to-gray-900 p-8">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl font-bold text-white mb-8">📺 Table Screen</h1>
-          <div className="bg-gray-800/80 backdrop-blur rounded-xl p-8">
-            <p className="text-xl text-gray-300">
-              Please select a table from the URL parameter (e.g., /table?id=TABLE_ID)
-            </p>
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold text-white mb-4">📺 Table Screen</h1>
+            <p className="text-xl text-gray-300">Select a table to display</p>
+          </div>
+
+          {tablesLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <div className="text-6xl mb-4">🎰</div>
+                <p className="text-xl text-white">Loading tables...</p>
+              </div>
+            </div>
+          ) : tables.length === 0 ? (
+            <div className="bg-gray-800/80 backdrop-blur rounded-xl p-8 text-center">
+              <div className="text-6xl mb-4">🎰</div>
+              <p className="text-xl text-gray-300 mb-6">No tables available</p>
+              <Link 
+                href="/" 
+                className="inline-block px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition"
+              >
+                ← Back to Home
+              </Link>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {tables.map((tableItem) => {
+                const tablePlayers = players.filter(p => tableItem.players.includes(p.id));
+                const gameIcon = getGameIcon(tableItem.game);
+                const gameColor = getGameColor(tableItem.game);
+                
+                return (
+                  <Link
+                    key={tableItem.id}
+                    href={`/table?id=${tableItem.id}`}
+                    className="block group"
+                  >
+                    <div className={`bg-gradient-to-br ${gameColor} rounded-xl p-6 shadow-lg hover:shadow-2xl transform hover:scale-105 transition-all duration-300`}>
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="text-4xl">{gameIcon}</div>
+                        <div>
+                          <h3 className="text-xl font-bold text-white">{tableItem.name}</h3>
+                          <p className="text-white/80 capitalize">{tableItem.game.replace('-', ' ')}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-white/70">Players:</span>
+                          <span className="text-white font-bold">{tablePlayers.length}</span>
+                        </div>
+                        
+                        <div className="flex justify-between items-center">
+                          <span className="text-white/70">Status:</span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                            tableItem.state === 'betting' ? 'bg-yellow-500 text-gray-900' :
+                            tableItem.state === 'finished' ? 'bg-blue-500 text-white' :
+                            'bg-gray-500 text-white'
+                          }`}>
+                            {tableItem.state.toUpperCase()}
+                          </span>
+                        </div>
+                        
+                        <div className="border-t border-white/20 pt-3">
+                          <div className="flex justify-between text-sm">
+                            <div>
+                              <span className="text-white/70">Min: </span>
+                              <span className="text-green-300 font-bold">₹{tableItem.minBet}</span>
+                            </div>
+                            <div>
+                              <span className="text-white/70">Max: </span>
+                              <span className="text-red-300 font-bold">₹{tableItem.maxBet}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 text-center">
+                        <span className="text-white/90 group-hover:text-white transition text-sm font-medium">
+                          Click to view →
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="text-center mt-8">
             <Link 
               href="/" 
-              className="inline-block mt-6 px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition"
+              className="inline-block px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition"
             >
               ← Back to Home
             </Link>
