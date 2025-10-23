@@ -57,18 +57,37 @@ export async function getAllPlayers(): Promise<Player[]> {
 
 export async function setPlayer(player: Omit<Player, 'id'>): Promise<Player> {
   try {
-    // Create new player and return the created object with auto-generated ID
-    const result = await client.query(`
-      INSERT Player {
-        name := <str>$name,
-        balance := <float64>$balance,
-        currentTable := <str>$currentTable
-      }
-    `, {
-      name: player.name,
-      balance: player.balance,
-      currentTable: player.currentTable || null
-    });
+    // Build the insert query dynamically based on whether currentTable is provided
+    let insertQuery: string;
+    let params: any;
+    
+    if (player.currentTable && player.currentTable.trim() !== '') {
+      insertQuery = `
+        INSERT Player {
+          name := <str>$name,
+          balance := <float64>$balance,
+          currentTable := <str>$currentTable
+        }
+      `;
+      params = {
+        name: player.name,
+        balance: player.balance,
+        currentTable: player.currentTable
+      };
+    } else {
+      insertQuery = `
+        INSERT Player {
+          name := <str>$name,
+          balance := <float64>$balance
+        }
+      `;
+      params = {
+        name: player.name,
+        balance: player.balance
+      };
+    }
+
+    const result = await client.query(insertQuery, params);
 
     // Get the created player
     const createdPlayer = await client.query(`
@@ -85,8 +104,17 @@ export async function setPlayer(player: Omit<Player, 'id'>): Promise<Player> {
       balance: player.balance
     });
 
-    return createdPlayer[0] as Player;
-    // }
+    if (!createdPlayer || createdPlayer.length === 0) {
+      throw new Error('Failed to retrieve created player');
+    }
+
+    const playerData = createdPlayer[0] as EdgeDBResult;
+    return {
+      id: playerData.id,
+      name: playerData.name,
+      balance: playerData.balance,
+      currentTable: playerData.currentTable || undefined
+    };
   } catch (error) {
     console.error('Error setting player:', error);
     throw error;
