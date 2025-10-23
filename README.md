@@ -89,13 +89,13 @@ For deployment on platforms like Railway, Render, or DigitalOcean:
 4. Set the start command: `npm start`
 5. Deploy!
 
-**Note**: The app uses in-memory storage, so data will reset when the server restarts. For persistence, you can integrate Redis/Upstash (connection code already uses compatible interface).
+**Note**: The app uses EdgeDB cloud database for persistence, ensuring data survives server restarts and works across Vercel edge deployments.
 
 ## Tech Stack
 
 - **Frontend**: Next.js 16, React 19, TailwindCSS
 - **Backend**: Next.js API Routes, Socket.IO
-- **Storage**: In-memory (can be extended to Redis/Upstash for persistence)
+- **Storage**: EdgeDB cloud database for full persistence across edge deployments
 - **Real-time**: Socket.IO for live updates
 
 ## Game Rules

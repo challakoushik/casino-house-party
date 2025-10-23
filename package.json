@@ -9,11 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@upstash/redis": "^1.35.6",
+    "edgedb": "^2.0.1",
     "next": "16.0.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "redis": "^5.8.3",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "uuid": "^13.0.0"
