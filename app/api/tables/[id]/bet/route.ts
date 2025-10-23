@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as redis from '@/lib/redis';
 import { Bet } from '@/lib/types';
 import { startBettingCountdown, addBet } from '@/lib/game-manager';
+import { publishToChannel, getTableChannel, AblyEvents } from '@/lib/ably';
 
 export async function POST(
   request: NextRequest,
@@ -92,18 +93,20 @@ export async function POST(
     // Add bet to game manager
     addBet(tableId, bet);
 
-    // Emit bet placed event via Socket.IO
-    if (global.io) {
-      global.io.to(`table-${tableId}`).emit('bet-placed', {
+    // Publish bet placed event via Ably
+    await publishToChannel(
+      getTableChannel(tableId), 
+      AblyEvents.BET_PLACED, 
+      {
         playerId,
         playerName: player.name,
         bet,
-      });
-
-      // Start betting countdown if this is the first bet
-      if (wasWaiting) {
-        startBettingCountdown(tableId, global.io);
       }
+    );
+
+    // Start betting countdown if this is the first bet
+    if (wasWaiting) {
+      startBettingCountdown(tableId, null); // We'll update game-manager.ts next
     }
 
     return NextResponse.json({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as redis from '@/lib/redis';
+import { publishToChannel, getGlobalChannel, AblyEvents } from '@/lib/ably';
 
 export async function GET(
   request: NextRequest,
@@ -43,10 +44,12 @@ export async function DELETE(
     // Delete the table
     await redis.deleteTable(id);
     
-    // Emit socket event to notify clients
-    if (global.io) {
-      global.io.emit('table-deleted', { tableId: id });
-    }
+    // Publish event via Ably
+    await publishToChannel(
+      getGlobalChannel(), 
+      AblyEvents.TABLE_DELETED, 
+      { tableId: id }
+    );
     
     return NextResponse.json({ success: true });
   } catch (error) {

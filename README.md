@@ -1,6 +1,6 @@
 # 🎰 Casino Party App
 
-A full-stack home casino party application with real-time multiplayer gaming. Built with Next.js, Socket.IO, and in-memory storage.
+A full-stack home casino party application with real-time multiplayer gaming. Built with Next.js, Ably, and EdgeDB for scalable serverless deployment.
 
 ## Features
 
@@ -15,11 +15,17 @@ A full-stack home casino party application with real-time multiplayer gaming. Bu
   - 🎴 Three Card Poker
   - 🂡 Blackjack
 
-- **Real-time Updates**: Using Socket.IO for live game updates
+- **Real-time Updates**: Using Ably for live game updates (serverless compatible)
 - **Simple Wallet System**: Admin can add chips to player accounts
-- **In-Memory Storage**: No external database required (perfect for quick setup)
+- **EdgeDB Storage**: Persistent data storage with modern database features
+- **Serverless Ready**: Optimized for Vercel edge deployment
 
 ## Getting Started
+
+### Prerequisites
+
+1. **Ably Account**: Sign up at [ably.com](https://ably.com) and get your API key
+2. **EdgeDB Instance**: Set up a database instance (local or cloud)
 
 ### Installation
 
@@ -27,6 +33,16 @@ A full-stack home casino party application with real-time multiplayer gaming. Bu
 2. Install dependencies:
 ```bash
 npm install
+```
+
+3. Set up environment variables:
+```bash
+cp .env.local.example .env.local
+```
+
+Edit `.env.local` and add your Ably API key:
+```env
+NEXT_PUBLIC_ABLY_API_KEY=your-ably-api-key-here
 ```
 
 ### Running the App
@@ -81,22 +97,22 @@ The easiest way to run this for a house party:
 
 ### Option 2: Cloud Deployment
 
-For deployment on platforms like Railway, Render, or DigitalOcean:
+For deployment on platforms like Vercel (recommended for serverless):
 
 1. Push your code to GitHub
-2. Connect your repository to the platform
-3. Set the build command: `npm run build`
-4. Set the start command: `npm start`
-5. Deploy!
+2. Connect your repository to Vercel
+3. Add your environment variables in Vercel dashboard
+4. Deploy automatically!
 
-**Note**: The app uses EdgeDB cloud database for persistence, ensuring data survives server restarts and works across Vercel edge deployments.
+**Note**: The app now uses Ably for real-time communication and EdgeDB for persistence, making it fully compatible with serverless edge deployments.
 
 ## Tech Stack
 
 - **Frontend**: Next.js 16, React 19, TailwindCSS
-- **Backend**: Next.js API Routes, Socket.IO
-- **Storage**: EdgeDB cloud database for full persistence across edge deployments
-- **Real-time**: Socket.IO for live updates
+- **Backend**: Next.js API Routes (serverless)
+- **Storage**: EdgeDB cloud database for full persistence
+- **Real-time**: Ably for live updates (serverless compatible)
+- **Deployment**: Optimized for Vercel edge functions
 
 ## Game Rules
 

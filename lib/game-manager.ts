@@ -5,6 +5,7 @@ import { spinWheel, calculateRoulettePayout } from './games/roulette';
 import { playBaccarat, calculateBaccaratPayout } from './games/baccarat';
 import { BlackjackGame, determineBlackjackWinner } from './games/blackjack';
 import { ThreeCardPokerGame, calculateThreeCardPokerPayout } from './games/three-card-poker';
+import { publishToChannel, getTableChannel, AblyEvents } from './ably';
 
 // Track active game timers
 const gameTimers: Map<string, NodeJS.Timeout> = new Map();
@@ -14,7 +15,7 @@ const gameBets: Map<string, Bet[]> = new Map();
  * Start betting countdown for a table
  * This is called when the first bet is placed
  */
-export function startBettingCountdown(tableId: string, io: any) {
+export function startBettingCountdown(tableId: string, io: any = null) {
   // If a timer already exists, don't start a new one
   if (gameTimers.has(tableId)) {
     return;
@@ -26,27 +27,35 @@ export function startBettingCountdown(tableId: string, io: any) {
   const countdownSeconds = process.env.NODE_ENV === 'development' ? 10 : 60;
   let remainingSeconds = countdownSeconds;
 
-  // Emit initial countdown
-  io.to(`table-${tableId}`).emit('countdown-update', { 
-    remainingSeconds,
-    totalSeconds: countdownSeconds 
-  });
+  // Publish initial countdown
+  publishToChannel(
+    getTableChannel(tableId), 
+    AblyEvents.COUNTDOWN_UPDATE, 
+    { 
+      remainingSeconds,
+      totalSeconds: countdownSeconds 
+    }
+  );
 
   // Create interval to update countdown every second
   const countdownInterval = setInterval(() => {
     remainingSeconds--;
     
     if (remainingSeconds > 0) {
-      io.to(`table-${tableId}`).emit('countdown-update', { 
-        remainingSeconds,
-        totalSeconds: countdownSeconds 
-      });
+      publishToChannel(
+        getTableChannel(tableId), 
+        AblyEvents.COUNTDOWN_UPDATE, 
+        { 
+          remainingSeconds,
+          totalSeconds: countdownSeconds 
+        }
+      );
     } else {
       clearInterval(countdownInterval);
       gameTimers.delete(tableId);
       
       // Execute the game
-      executeGame(tableId, io);
+      executeGame(tableId);
     }
   }, 1000);
 
@@ -66,7 +75,7 @@ export function addBet(tableId: string, bet: Bet) {
 /**
  * Execute the game based on the table type
  */
-async function executeGame(tableId: string, io: any) {
+async function executeGame(tableId: string) {
   try {
     console.log(`Executing game for table ${tableId}`);
     
@@ -79,14 +88,18 @@ async function executeGame(tableId: string, io: any) {
     // Update table state to playing
     table.state = 'playing';
     await redis.setTable(table);
-    io.to(`table-${tableId}`).emit('game-state-changed', { state: 'playing' });
+    await publishToChannel(
+      getTableChannel(tableId), 
+      AblyEvents.GAME_STATE_CHANGED, 
+      { state: 'playing' }
+    );
 
     // Get all bets for this table
     const bets = gameBets.get(tableId) || [];
     
     if (bets.length === 0) {
       console.log(`No bets placed for table ${tableId}, returning to waiting`);
-      await resetTableToWaiting(tableId, io);
+      await resetTableToWaiting(tableId);
       return;
     }
 
@@ -96,22 +109,22 @@ async function executeGame(tableId: string, io: any) {
 
     switch (table.game) {
       case 'roulette':
-        gameResult = await executeRoulette(table, bets, io);
+        gameResult = await executeRoulette(table, bets);
         payouts = gameResult.payouts;
         break;
       
       case 'baccarat':
-        gameResult = await executeBaccarat(table, bets, io);
+        gameResult = await executeBaccarat(table, bets);
         payouts = gameResult.payouts;
         break;
       
       case 'blackjack':
-        gameResult = await executeBlackjack(table, bets, io);
+        gameResult = await executeBlackjack(table, bets);
         payouts = gameResult.payouts;
         break;
       
       case 'three-card-poker':
-        gameResult = await executeThreeCardPoker(table, bets, io);
+        gameResult = await executeThreeCardPoker(table, bets);
         payouts = gameResult.payouts;
         break;
     }
@@ -119,10 +132,14 @@ async function executeGame(tableId: string, io: any) {
     // Update table state to finished
     table.state = 'finished';
     await redis.setTable(table);
-    io.to(`table-${tableId}`).emit('game-state-changed', { state: 'finished' });
+    await publishToChannel(
+      getTableChannel(tableId), 
+      AblyEvents.GAME_STATE_CHANGED, 
+      { state: 'finished' }
+    );
 
     // Distribute payouts
-    await distributePayouts(payouts, io, tableId);
+    await distributePayouts(payouts, tableId);
 
     // Update house balance
     await updateHouseBalance(bets, payouts);
@@ -130,22 +147,22 @@ async function executeGame(tableId: string, io: any) {
     // Clear bets for this table
     gameBets.delete(tableId);
 
-    // Wait 5 seconds before resetting to waiting
+    // Wait 20 seconds before resetting to waiting
     setTimeout(async () => {
-      await resetTableToWaiting(tableId, io);
+      await resetTableToWaiting(tableId);
     }, 20000);
 
   } catch (error) {
     console.error(`Error executing game for table ${tableId}:`, error);
     // Reset table to waiting on error
-    await resetTableToWaiting(tableId, io);
+    await resetTableToWaiting(tableId);
   }
 }
 
 /**
  * Execute roulette game
  */
-async function executeRoulette(table: Table, bets: Bet[], io: any) {
+async function executeRoulette(table: Table, bets: Bet[]) {
   const winningNumber = spinWheel();
   console.log(`Roulette: winning number is ${winningNumber}`);
 
@@ -167,15 +184,19 @@ async function executeRoulette(table: Table, bets: Bet[], io: any) {
     }
   }
 
-  // Emit game result
-  io.to(`table-${table.id}`).emit('game-result', {
-    game: 'roulette',
-    result: { winningNumber },
-    payouts: Array.from(payouts.entries()).map(([playerId, amount]) => ({
-      playerId,
-      amount
-    }))
-  });
+  // Publish game result
+  await publishToChannel(
+    getTableChannel(table.id), 
+    AblyEvents.GAME_RESULT, 
+    {
+      game: 'roulette',
+      result: { winningNumber },
+      payouts: Array.from(payouts.entries()).map(([playerId, amount]) => ({
+        playerId,
+        amount
+      }))
+    }
+  );
 
   return { payouts };
 }
@@ -183,18 +204,22 @@ async function executeRoulette(table: Table, bets: Bet[], io: any) {
 /**
  * Execute baccarat game
  */
-async function executeBaccarat(table: Table, bets: Bet[], io: any) {
+async function executeBaccarat(table: Table, bets: Bet[]) {
   const gameResult = playBaccarat();
   console.log(`Baccarat: winner is ${gameResult.winner}`);
 
-  // Emit game result
-  io.to(`table-${table.id}`).emit('baccarat-result', {
-    playerCards: gameResult.playerCards,
-    bankerCards: gameResult.bankerCards,
-    playerScore: gameResult.playerScore,
-    bankerScore: gameResult.bankerScore,
-    winner: gameResult.winner
-  });
+  // Publish game result
+  await publishToChannel(
+    getTableChannel(table.id), 
+    AblyEvents.BACCARAT_RESULT, 
+    {
+      playerCards: gameResult.playerCards,
+      bankerCards: gameResult.bankerCards,
+      playerScore: gameResult.playerScore,
+      bankerScore: gameResult.bankerScore,
+      winner: gameResult.winner
+    }
+  );
 
   const payouts = new Map<string, number>();
 
@@ -213,15 +238,19 @@ async function executeBaccarat(table: Table, bets: Bet[], io: any) {
     }
   }
 
-  // Emit game result
-  io.to(`table-${table.id}`).emit('game-result', {
-    game: 'baccarat',
-    result: gameResult,
-    payouts: Array.from(payouts.entries()).map(([playerId, amount]) => ({
-      playerId,
-      amount
-    }))
-  });
+  // Publish game result
+  await publishToChannel(
+    getTableChannel(table.id), 
+    AblyEvents.GAME_RESULT, 
+    {
+      game: 'baccarat',
+      result: gameResult,
+      payouts: Array.from(payouts.entries()).map(([playerId, amount]) => ({
+        playerId,
+        amount
+      }))
+    }
+  );
 
   return { payouts };
 }
@@ -229,7 +258,7 @@ async function executeBaccarat(table: Table, bets: Bet[], io: any) {
 /**
  * Execute blackjack game
  */
-async function executeBlackjack(table: Table, bets: Bet[], io: any) {
+async function executeBlackjack(table: Table, bets: Bet[]) {
   const game = new BlackjackGame();
   
   // Deal initial hands
@@ -247,24 +276,32 @@ async function executeBlackjack(table: Table, bets: Bet[], io: any) {
     }
   }
 
-  // Emit initial deal
-  io.to(`table-${table.id}`).emit('blackjack-deal', {
-    dealerCards: [dealerCards[0]], // Show only one dealer card
-    playerHands: Array.from(playerHands.entries()).map(([playerId, cards]) => ({
-      playerId,
-      cards: cards
-    }))
-  });
+  // Publish initial deal
+  await publishToChannel(
+    getTableChannel(table.id), 
+    AblyEvents.BLACKJACK_DEAL, 
+    {
+      dealerCards: [dealerCards[0]], // Show only one dealer card
+      playerHands: Array.from(playerHands.entries()).map(([playerId, cards]) => ({
+        playerId,
+        cards: cards
+      }))
+    }
+  );
 
   // Dealer plays (simplified - all players stand)
   while (game.shouldDealerHit(dealerCards)) {
     dealerCards.push(game.dealCard());
   }
 
-  // Emit dealer's final hand
-  io.to(`table-${table.id}`).emit('blackjack-dealer-final', {
-    dealerCards: dealerCards
-  });
+  // Publish dealer's final hand
+  await publishToChannel(
+    getTableChannel(table.id), 
+    AblyEvents.BLACKJACK_DEALER_FINAL, 
+    {
+      dealerCards: dealerCards
+    }
+  );
 
   const payouts = new Map<string, number>();
 
@@ -279,21 +316,25 @@ async function executeBlackjack(table: Table, bets: Bet[], io: any) {
     }
   }
 
-  // Emit game result
-  io.to(`table-${table.id}`).emit('game-result', {
-    game: 'blackjack',
-    result: {
-      dealerCards: dealerCards,
-      playerHands: Array.from(playerHands.entries()).map(([playerId, cards]) => ({
+  // Publish game result
+  await publishToChannel(
+    getTableChannel(table.id), 
+    AblyEvents.GAME_RESULT, 
+    {
+      game: 'blackjack',
+      result: {
+        dealerCards: dealerCards,
+        playerHands: Array.from(playerHands.entries()).map(([playerId, cards]) => ({
+          playerId,
+          cards: cards
+        }))
+      },
+      payouts: Array.from(payouts.entries()).map(([playerId, amount]) => ({
         playerId,
-        cards: cards
+        amount
       }))
-    },
-    payouts: Array.from(payouts.entries()).map(([playerId, amount]) => ({
-      playerId,
-      amount
-    }))
-  });
+    }
+  );
 
   return { payouts };
 }
@@ -301,7 +342,7 @@ async function executeBlackjack(table: Table, bets: Bet[], io: any) {
 /**
  * Execute three card poker game
  */
-async function executeThreeCardPoker(table: Table, bets: Bet[], io: any) {
+async function executeThreeCardPoker(table: Table, bets: Bet[]) {
   const game = new ThreeCardPokerGame();
   
   const dealerCards = game.dealHand();
@@ -326,14 +367,18 @@ async function executeThreeCardPoker(table: Table, bets: Bet[], io: any) {
     }
   }
 
-  // Emit deal
-  io.to(`table-${table.id}`).emit('three-card-poker-deal', {
-    dealerCards: dealerCards,
-    playerHands: Array.from(playerHands.entries()).map(([playerId, cards]) => ({
-      playerId,
-      cards: cards
-    }))
-  });
+  // Publish deal
+  await publishToChannel(
+    getTableChannel(table.id), 
+    AblyEvents.THREE_CARD_POKER_DEAL, 
+    {
+      dealerCards: dealerCards,
+      playerHands: Array.from(playerHands.entries()).map(([playerId, cards]) => ({
+        playerId,
+        cards: cards
+      }))
+    }
+  );
 
   const payouts = new Map<string, number>();
 
@@ -354,21 +399,25 @@ async function executeThreeCardPoker(table: Table, bets: Bet[], io: any) {
     }
   }
 
-  // Emit game result
-  io.to(`table-${table.id}`).emit('game-result', {
-    game: 'three-card-poker',
-    result: {
-      dealerCards: dealerCards,
-      playerHands: Array.from(playerHands.entries()).map(([playerId, cards]) => ({
+  // Publish game result
+  await publishToChannel(
+    getTableChannel(table.id), 
+    AblyEvents.GAME_RESULT, 
+    {
+      game: 'three-card-poker',
+      result: {
+        dealerCards: dealerCards,
+        playerHands: Array.from(playerHands.entries()).map(([playerId, cards]) => ({
+          playerId,
+          cards: cards
+        }))
+      },
+      payouts: Array.from(payouts.entries()).map(([playerId, amount]) => ({
         playerId,
-        cards: cards
+        amount
       }))
-    },
-    payouts: Array.from(payouts.entries()).map(([playerId, amount]) => ({
-      playerId,
-      amount
-    }))
-  });
+    }
+  );
 
   return { payouts };
 }
@@ -376,19 +425,23 @@ async function executeThreeCardPoker(table: Table, bets: Bet[], io: any) {
 /**
  * Distribute payouts to players
  */
-async function distributePayouts(payouts: Map<string, number>, io: any, tableId: string) {
+async function distributePayouts(payouts: Map<string, number>, tableId: string) {
   for (const [playerId, amount] of payouts.entries()) {
     const player = await redis.getPlayer(playerId);
     if (player) {
       player.balance += amount;
       await redis.setPlayer(player);
       
-      // Emit balance update
-      io.to(`table-${tableId}`).emit('player-balance-updated', {
-        playerId,
-        balance: player.balance,
-        payout: amount
-      });
+      // Publish balance update
+      await publishToChannel(
+        getTableChannel(tableId), 
+        'player-balance-updated', 
+        {
+          playerId,
+          balance: player.balance,
+          payout: amount
+        }
+      );
     }
   }
 }
@@ -414,12 +467,16 @@ async function updateHouseBalance(bets: Bet[], payouts: Map<string, number>) {
 /**
  * Reset table to waiting state
  */
-async function resetTableToWaiting(tableId: string, io: any) {
+async function resetTableToWaiting(tableId: string) {
   const table = await redis.getTable(tableId);
   if (table) {
     table.state = 'waiting';
     await redis.setTable(table);
-    io.to(`table-${tableId}`).emit('game-state-changed', { state: 'waiting' });
+    await publishToChannel(
+      getTableChannel(tableId), 
+      AblyEvents.GAME_STATE_CHANGED, 
+      { state: 'waiting' }
+    );
     console.log(`Table ${tableId} reset to waiting state`);
   }
 }

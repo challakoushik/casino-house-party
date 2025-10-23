@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Table, Player } from '@/lib/types';
-import { io, Socket } from 'socket.io-client';
+import { getAblyClient, subscribeToChannel, unsubscribeFromChannel, getTableChannel, AblyEvents, closeAblyConnection } from '@/lib/ably';
 import { Card, CardHand } from '@/app/components/Card';
 import { RouletteWheel } from '@/app/components/RouletteWheel';
 
@@ -15,7 +15,6 @@ function TableScreenContent() {
   const [tables, setTables] = useState<Table[]>([]);
   const [tablesLoading, setTablesLoading] = useState(false);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [gameResult, setGameResult] = useState<any>(null);
   const [recentBets, setRecentBets] = useState<Array<{playerId: string, playerName: string, bet: any}>>([]);
@@ -76,28 +75,32 @@ function TableScreenContent() {
   };
 
   useEffect(() => {
-    // Initialize Socket.IO connection
-    const socketInstance = io();
-    setSocket(socketInstance);
+    if (!tableId) return;
 
-    socketInstance.on('connect', () => {
-      console.log('Table screen connected to server');
-      if (tableId) {
-        socketInstance.emit('join-table', { tableId, playerId: 'table-screen' });
-      }
-    });
+    // Initialize Ably connection
+    const ablyClient = getAblyClient();
+    console.log('Table screen connected to Ably');
 
-    socketInstance.on('countdown-update', (data: { remainingSeconds: number }) => {
+    // Subscribe to table-specific events
+    const tableChannel = getTableChannel(tableId);
+
+    // Subscribe to countdown updates
+    subscribeToChannel(tableChannel, AblyEvents.COUNTDOWN_UPDATE, (message) => {
+      const data = message.data as { remainingSeconds: number };
       setCountdown(data.remainingSeconds);
       setGameResult(null); // Clear previous game result when new round starts
     });
 
-    socketInstance.on('bet-placed', (data: { playerId: string, playerName: string, bet: any }) => {
+    // Subscribe to bet placed events
+    subscribeToChannel(tableChannel, AblyEvents.BET_PLACED, (message) => {
+      const data = message.data as { playerId: string, playerName: string, bet: any };
       console.log('Bet placed:', data);
       setRecentBets(prev => [...prev.slice(-4), data]); // Keep last 5 bets
     });
 
-    socketInstance.on('game-state-changed', (data: { state: string }) => {
+    // Subscribe to game state changes
+    subscribeToChannel(tableChannel, AblyEvents.GAME_STATE_CHANGED, (message) => {
+      const data = message.data as { state: string };
       console.log('Game state changed:', data.state);
       if (data.state === 'waiting') {
         setCountdown(null);
@@ -106,34 +109,52 @@ function TableScreenContent() {
       }
     });
 
-    socketInstance.on('game-result', (data: any) => {
+    // Subscribe to game results
+    subscribeToChannel(tableChannel, AblyEvents.GAME_RESULT, (message) => {
+      const data = message.data;
       console.log('Game result:', data);
       setCountdown(null);
       setGameResult(data);
     });
 
-    socketInstance.on('baccarat-result', (data: any) => {
+    // Subscribe to baccarat results
+    subscribeToChannel(tableChannel, AblyEvents.BACCARAT_RESULT, (message) => {
+      const data = message.data;
       console.log('Baccarat result:', data);
       setGameResult({ game: 'baccarat', ...data });
     });
 
-    socketInstance.on('blackjack-deal', (data: any) => {
+    // Subscribe to blackjack deal
+    subscribeToChannel(tableChannel, AblyEvents.BLACKJACK_DEAL, (message) => {
+      const data = message.data;
       console.log('Blackjack deal:', data);
       setGameResult({ game: 'blackjack-deal', ...data });
     });
 
-    socketInstance.on('blackjack-dealer-final', (data: any) => {
+    // Subscribe to blackjack dealer final
+    subscribeToChannel(tableChannel, AblyEvents.BLACKJACK_DEALER_FINAL, (message) => {
+      const data = message.data;
       console.log('Blackjack dealer final:', data);
       setGameResult((prev: any) => ({ ...prev, dealerFinalCards: data.dealerCards }));
     });
 
-    socketInstance.on('three-card-poker-deal', (data: any) => {
+    // Subscribe to three card poker deal
+    subscribeToChannel(tableChannel, AblyEvents.THREE_CARD_POKER_DEAL, (message) => {
+      const data = message.data;
       console.log('Three card poker deal:', data);
       setGameResult({ game: 'three-card-poker', ...data });
     });
 
     return () => {
-      socketInstance.disconnect();
+      // Cleanup subscriptions
+      unsubscribeFromChannel(tableChannel, AblyEvents.COUNTDOWN_UPDATE);
+      unsubscribeFromChannel(tableChannel, AblyEvents.BET_PLACED);
+      unsubscribeFromChannel(tableChannel, AblyEvents.GAME_STATE_CHANGED);
+      unsubscribeFromChannel(tableChannel, AblyEvents.GAME_RESULT);
+      unsubscribeFromChannel(tableChannel, AblyEvents.BACCARAT_RESULT);
+      unsubscribeFromChannel(tableChannel, AblyEvents.BLACKJACK_DEAL);
+      unsubscribeFromChannel(tableChannel, AblyEvents.BLACKJACK_DEALER_FINAL);
+      unsubscribeFromChannel(tableChannel, AblyEvents.THREE_CARD_POKER_DEAL);
     };
   }, [tableId]);
 

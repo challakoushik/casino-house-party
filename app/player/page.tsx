@@ -3,13 +3,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Player, Table } from '@/lib/types';
-import { io, Socket } from 'socket.io-client';
+import { getAblyClient, subscribeToChannel, unsubscribeFromChannel, getTableChannel, getGlobalChannel, AblyEvents, closeAblyConnection } from '@/lib/ably';
 
 export default function PlayerPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [tables, setTables] = useState<Table[]>([]);
   const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [showBettingInterface, setShowBettingInterface] = useState(false);
   const [betAmount, setBetAmount] = useState<number>(50);
   const [selectedBetType, setSelectedBetType] = useState<string>('');
@@ -48,32 +47,38 @@ export default function PlayerPage() {
   }, [currentPlayer]);
 
   useEffect(() => {
-    // Initialize Socket.IO connection
-    const socketInstance = io();
-    setSocket(socketInstance);
+    // Initialize Ably connection
+    const ablyClient = getAblyClient();
 
-    socketInstance.on('connect', () => {
-      console.log('Connected to server');
-    });
-
-    socketInstance.on('bet-placed', (data) => {
-      console.log('Bet placed:', data);
+    // Subscribe to bet placed events
+    subscribeToChannel('global', AblyEvents.BET_PLACED, (message) => {
+      console.log('Bet placed:', message.data);
       loadData(); // Reload data when bet is placed
     });
 
     return () => {
-      socketInstance.disconnect();
+      // Clean up subscriptions
+      unsubscribeFromChannel('global', AblyEvents.BET_PLACED);
     };
   }, []);
 
   useEffect(() => {
-    if (socket && currentPlayer?.currentTable) {
-      socket.emit('join-table', {
-        tableId: currentPlayer.currentTable,
-        playerId: currentPlayer.id,
+    if (currentPlayer?.currentTable) {
+      // Subscribe to table-specific events
+      const tableChannel = getTableChannel(currentPlayer.currentTable);
+      subscribeToChannel(tableChannel, AblyEvents.PLAYER_JOINED, () => {
+        loadData(); // Reload when players join
       });
+      subscribeToChannel(tableChannel, AblyEvents.PLAYER_LEFT, () => {
+        loadData(); // Reload when players leave
+      });
+
+      return () => {
+        unsubscribeFromChannel(tableChannel, AblyEvents.PLAYER_JOINED);
+        unsubscribeFromChannel(tableChannel, AblyEvents.PLAYER_LEFT);
+      };
     }
-  }, [socket, currentPlayer?.currentTable, currentPlayer?.id]);
+  }, [currentPlayer?.currentTable, currentPlayer?.id]);
 
   const placeBet = async () => {
     if (!currentPlayer || !currentPlayer.currentTable || !selectedBetType) {
@@ -128,14 +133,7 @@ export default function PlayerPage() {
         setSelectedBetType('');
         setSelectedBetValue(null);
         
-        // Emit via socket for real-time updates
-        if (socket) {
-          socket.emit('place-bet', {
-            tableId: currentPlayer.currentTable,
-            playerId: currentPlayer.id,
-            bet: data.bet,
-          });
-        }
+        // Note: Real-time updates are now handled automatically via Ably in the API
       } else {
         setBetMessage(`❌ ${data.error}`);
       }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as redis from '@/lib/redis';
+import { publishToChannel, getTableChannel, AblyEvents } from '@/lib/ably';
 
 export async function POST(
   request: NextRequest,
@@ -20,10 +21,12 @@ export async function POST(
       return NextResponse.json({ error: 'Table not found' }, { status: 404 });
     }
 
-    // Emit socket event
-    if (global.io) {
-      global.io.to(`table-${tableId}`).emit('player-joined', { playerId, tableId });
-    }
+    // Publish event via Ably
+    await publishToChannel(
+      getTableChannel(tableId), 
+      AblyEvents.PLAYER_JOINED, 
+      { playerId, tableId }
+    );
 
     return NextResponse.json(table);
   } catch (error) {
