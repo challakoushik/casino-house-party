@@ -57,12 +57,27 @@ export async function getAllPlayers(): Promise<Player[]> {
 
 export async function setPlayer(player: Player): Promise<void> {
   try {
-    if (player.id) {
-      // Update existing player
+    // if (player.id) {
+    //   // Update existing player
+    //   await client.query(`
+    //     UPDATE Player
+    //     FILTER .id = <uuid>$id
+    //     SET {
+    //       name := $name,
+    //       balance := $balance,
+    //       currentTable := $currentTable
+    //     }
+    //   `, {
+    //     id: player.id,
+    //     name: player.name,
+    //     balance: player.balance,
+    //     currentTable: player.currentTable || null
+    //   });
+    // } else {
+      // Create new player
       await client.query(`
-        UPDATE Player
-        FILTER .id = <uuid>$id
-        SET {
+        INSERT Player {
+          id := <uuid>$id,
           name := $name,
           balance := $balance,
           currentTable := $currentTable
@@ -73,20 +88,7 @@ export async function setPlayer(player: Player): Promise<void> {
         balance: player.balance,
         currentTable: player.currentTable || null
       });
-    } else {
-      // Create new player
-      await client.query(`
-        INSERT Player {
-          name := $name,
-          balance := $balance,
-          currentTable := $currentTable
-        }
-      `, {
-        name: player.name,
-        balance: player.balance,
-        currentTable: player.currentTable || null
-      });
-    }
+    // }
   } catch (error) {
     console.error('Error setting player:', error);
     throw error;
@@ -190,12 +192,31 @@ export async function getAllTables(): Promise<Table[]> {
 
 export async function setTable(table: Table): Promise<void> {
   try {
-    if (table.id) {
-      // Update existing table
+    // if (table.id) {
+    //   // Update existing table
+    //   await client.query(`
+    //     UPDATE Table
+    //     FILTER .id = <uuid>$id
+    //     SET {
+    //       name := $name,
+    //       game := $game,
+    //       minBet := $minBet,
+    //       maxBet := $maxBet,
+    //       state := $state
+    //     }
+    //   `, {
+    //     id: table.id,
+    //     name: table.name,
+    //     game: table.game,
+    //     minBet: table.minBet,
+    //     maxBet: table.maxBet,
+    //     state: table.state
+    //   });
+    // } else {
+      // Create new table
       await client.query(`
-        UPDATE Table
-        FILTER .id = <uuid>$id
-        SET {
+        INSERT Table {
+          id := <uuid>$id,
           name := $name,
           game := $game,
           minBet := $minBet,
@@ -210,24 +231,7 @@ export async function setTable(table: Table): Promise<void> {
         maxBet: table.maxBet,
         state: table.state
       });
-    } else {
-      // Create new table
-      await client.query(`
-        INSERT Table {
-          name := $name,
-          game := $game,
-          minBet := $minBet,
-          maxBet := $maxBet,
-          state := $state
-        }
-      `, {
-        name: table.name,
-        game: table.game,
-        minBet: table.minBet,
-        maxBet: table.maxBet,
-        state: table.state
-      });
-    }
+    // }
   } catch (error) {
     console.error('Error setting table:', error);
     throw error;

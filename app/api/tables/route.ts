@@ -8,7 +8,7 @@ export async function GET() {
     const tables = await redis.getAllTables();
     return NextResponse.json(tables);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch tables' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch tables' + error }, { status: 500 });
   }
 }
 
@@ -38,6 +38,6 @@ export async function POST(request: NextRequest) {
     await redis.setTable(table);
     return NextResponse.json(table, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to create table' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create table' + error }, { status: 500 });
   }
 }
