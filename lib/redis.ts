@@ -55,39 +55,37 @@ export async function getAllPlayers(): Promise<Player[]> {
   }
 }
 
-export async function setPlayer(player: Player): Promise<void> {
+export async function setPlayer(player: Omit<Player, 'id'>): Promise<Player> {
   try {
-    // if (player.id) {
-    //   // Update existing player
-    //   await client.query(`
-    //     UPDATE Player
-    //     FILTER .id = <uuid>$id
-    //     SET {
-    //       name := <str>$name,
-    //       balance := <float64>$balance,
-    //       currentTable := <str>$currentTable
-    //     }
-    //   `, {
-    //     id: player.id,
-    //     name: player.name,
-    //     balance: player.balance,
-    //     currentTable: player.currentTable || null
-    //   });
-    // } else {
-      // Create new player
-      await client.query(`
-        INSERT Player {
-          id := <uuid>$id,
-          name := <str>$name,
-          balance := <float64>$balance,
-          currentTable := <str>$currentTable
-        }
-      `, {
-        id: player.id,
-        name: player.name,
-        balance: player.balance,
-        currentTable: player.currentTable || null
-      });
+    // Create new player and return the created object with auto-generated ID
+    const result = await client.query(`
+      INSERT Player {
+        name := <str>$name,
+        balance := <float64>$balance,
+        currentTable := <str>$currentTable
+      }
+    `, {
+      name: player.name,
+      balance: player.balance,
+      currentTable: player.currentTable || null
+    });
+
+    // Get the created player
+    const createdPlayer = await client.query(`
+      SELECT Player {
+        id,
+        name,
+        balance,
+        currentTable
+      } FILTER .name = <str>$name AND .balance = <float64>$balance
+      ORDER BY .id DESC
+      LIMIT 1
+    `, {
+      name: player.name,
+      balance: player.balance
+    });
+
+    return createdPlayer[0] as Player;
     // }
   } catch (error) {
     console.error('Error setting player:', error);
@@ -190,47 +188,53 @@ export async function getAllTables(): Promise<Table[]> {
   }
 }
 
-export async function setTable(table: Table): Promise<void> {
+export async function setTable(table: Omit<Table, 'id'>): Promise<Table> {
   try {
-    // if (table.id) {
-    //   // Update existing table
-    //   await client.query(`
-    //     UPDATE Table
-    //     FILTER .id = <uuid>$id
-    //     SET {
-    //       name := <str>$name,
-    //       game := <str>$game,
-    //       minBet := <float64>$minBet,
-    //       maxBet := <float64>$maxBet,
-    //       state := <str>$state
-    //     }
-    //   `, {
-    //     id: table.id,
-    //     name: table.name,
-    //     game: table.game,
-    //     minBet: table.minBet,
-    //     maxBet: table.maxBet,
-    //     state: table.state
-    //   });
-    // } else {
-      // Create new table
-      await client.query(`
-        INSERT Table {
-          id := <uuid>$id,
-          name := <str>$name,
-          game := <str>$game,
-          minBet := <float64>$minBet,
-          maxBet := <float64>$maxBet,
-          state := <str>$state
-        }
-      `, {
-        id: table.id,
-        name: table.name,
-        game: table.game,
-        minBet: table.minBet,
-        maxBet: table.maxBet,
-        state: table.state
-      });
+    // Create new table and return the created object with auto-generated ID
+    const result = await client.query(`
+      INSERT Table {
+        name := <str>$name,
+        game := <str>$game,
+        minBet := <float64>$minBet,
+        maxBet := <float64>$maxBet,
+        state := <str>$state
+      }
+    `, {
+      name: table.name,
+      game: table.game,
+      minBet: table.minBet,
+      maxBet: table.maxBet,
+      state: table.state
+    });
+
+    // Get the created table
+    const createdTable = await client.query(`
+      SELECT Table {
+        id,
+        name,
+        game,
+        minBet,
+        maxBet,
+        state,
+        players: { id }
+      } FILTER .name = <str>$name AND .game = <str>$game
+      ORDER BY .id DESC
+      LIMIT 1
+    `, {
+      name: table.name,
+      game: table.game
+    });
+
+    const tableResult = createdTable[0] as EdgeDBResult;
+    return {
+      id: tableResult.id,
+      name: tableResult.name,
+      game: tableResult.game,
+      minBet: tableResult.minBet,
+      maxBet: tableResult.maxBet,
+      state: tableResult.state,
+      players: (tableResult.players as EdgeDBResult[]).map(p => p.id)
+    };
     // }
   } catch (error) {
     console.error('Error setting table:', error);

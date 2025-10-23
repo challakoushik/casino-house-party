@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 import * as redis from '@/lib/redis';
 import { Table } from '@/lib/types';
 
@@ -25,18 +24,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid game type' }, { status: 400 });
     }
 
-    const table: Table = {
-      id: uuidv4(),
+    const tableData = {
       name,
       game,
       players: [],
       minBet,
       maxBet,
-      state: 'waiting',
+      state: 'waiting' as const,
     };
 
-    await redis.setTable(table);
-    return NextResponse.json(table, { status: 201 });
+    const createdTable = await redis.setTable(tableData);
+    return NextResponse.json(createdTable, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to create table' + error }, { status: 500 });
   }
