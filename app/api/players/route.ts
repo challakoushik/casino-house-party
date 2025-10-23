@@ -28,6 +28,6 @@ export async function POST(request: NextRequest) {
     const createdPlayer = await redis.setPlayer(playerData);
     return NextResponse.json(createdPlayer, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to create player' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create player' + error }, { status: 500 });
   }
 }

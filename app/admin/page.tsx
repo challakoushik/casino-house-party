@@ -77,6 +77,15 @@ export default function AdminPage() {
     }
   };
 
+  const deleteTable = async (id: string) => {
+    try {
+      await fetch(`/api/tables/${id}`, { method: 'DELETE' });
+      loadData();
+    } catch (error) {
+      console.error('Failed to delete table:', error);
+    }
+  };
+
   const addTable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTableName.trim()) return;
@@ -281,17 +290,25 @@ export default function AdminPage() {
               {tables.map((table) => (
                 <div
                   key={table.id}
-                  className="bg-gray-700/50 p-3 rounded-lg"
+                  className="flex justify-between items-center bg-gray-700/50 p-3 rounded-lg"
                 >
-                  <div className="flex justify-between items-start mb-1">
-                    <p className="text-white font-medium">{table.name}</p>
-                    <span className="text-xs px-2 py-1 bg-purple-600 rounded text-white">
-                      {table.game}
-                    </span>
+                  <div>
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-white font-medium">{table.name}</p>
+                      <span className="text-xs px-2 py-1 bg-purple-600 rounded text-white">
+                        {table.game}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-400">
+                      Players: {table.players.length} | State: {table.state}
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-400">
-                    Players: {table.players.length} | State: {table.state}
-                  </p>
+                  <button
+                    onClick={() => deleteTable(table.id)}
+                    className="px-3 py-1 bg-red-600/50 hover:bg-red-600 text-white text-sm rounded transition"
+                  >
+                    Remove
+                  </button>
                 </div>
               ))}
               {tables.length === 0 && (
