@@ -63,9 +63,9 @@ export async function setPlayer(player: Player): Promise<void> {
     //     UPDATE Player
     //     FILTER .id = <uuid>$id
     //     SET {
-    //       name := $name,
-    //       balance := $balance,
-    //       currentTable := $currentTable
+    //       name := <str>$name,
+    //       balance := <float64>$balance,
+    //       currentTable := <str>$currentTable
     //     }
     //   `, {
     //     id: player.id,
@@ -78,9 +78,9 @@ export async function setPlayer(player: Player): Promise<void> {
       await client.query(`
         INSERT Player {
           id := <uuid>$id,
-          name := $name,
-          balance := $balance,
-          currentTable := $currentTable
+          name := <str>$name,
+          balance := <float64>$balance,
+          currentTable := <str>$currentTable
         }
       `, {
         id: player.id,
@@ -198,11 +198,11 @@ export async function setTable(table: Table): Promise<void> {
     //     UPDATE Table
     //     FILTER .id = <uuid>$id
     //     SET {
-    //       name := $name,
-    //       game := $game,
-    //       minBet := $minBet,
-    //       maxBet := $maxBet,
-    //       state := $state
+    //       name := <str>$name,
+    //       game := <str>$game,
+    //       minBet := <float64>$minBet,
+    //       maxBet := <float64>$maxBet,
+    //       state := <str>$state
     //     }
     //   `, {
     //     id: table.id,
@@ -217,11 +217,11 @@ export async function setTable(table: Table): Promise<void> {
       await client.query(`
         INSERT Table {
           id := <uuid>$id,
-          name := $name,
-          game := $game,
-          minBet := $minBet,
-          maxBet := $maxBet,
-          state := $state
+          name := <str>$name,
+          game := <str>$game,
+          minBet := <float64>$minBet,
+          maxBet := <float64>$maxBet,
+          state := <str>$state
         }
       `, {
         id: table.id,
@@ -266,7 +266,7 @@ export async function addPlayerToTable(tableId: string, playerId: string): Promi
       UPDATE Player
       FILTER .id = <uuid>$playerId
       SET {
-        currentTable := $tableId
+        currentTable := <str>$tableId
       }
     `, { playerId, tableId });
     
@@ -366,8 +366,8 @@ export async function setGameState(state: GameState): Promise<void> {
         UPDATE GameState
         FILTER .table.id = <uuid>$tableId
         SET {
-          game := $game,
-          state := $state,
+          game := <str>$game,
+          state := <str>$state,
           result := <json>$result,
           gameData := <json>$gameData
         }
@@ -383,8 +383,8 @@ export async function setGameState(state: GameState): Promise<void> {
       await client.query(`
         INSERT GameState {
           table := (SELECT Table FILTER .id = <uuid>$tableId),
-          game := $game,
-          state := $state,
+          game := <str>$game,
+          state := <str>$state,
           result := <json>$result,
           gameData := <json>$gameData
         }
@@ -438,9 +438,9 @@ export async function getCasinoState(): Promise<CasinoState> {
     const defaultState = { houseBalance: 0, totalBets: 0, totalPayout: 0 };
     await client.query(`
       INSERT CasinoState {
-        houseBalance := 0,
-        totalBets := 0,
-        totalPayout := 0
+        houseBalance := <float64>0,
+        totalBets := <float64>0,
+        totalPayout := <float64>0
       }
     `);
     return defaultState;
@@ -459,9 +459,9 @@ export async function updateCasinoState(update: Partial<CasinoState>): Promise<C
     await client.query(`
       UPDATE CasinoState
       SET {
-        houseBalance := $houseBalance ?? .houseBalance,
-        totalBets := $totalBets ?? .totalBets,
-        totalPayout := $totalPayout ?? .totalPayout
+        houseBalance := <float64>$houseBalance ?? .houseBalance,
+        totalBets := <float64>$totalBets ?? .totalBets,
+        totalPayout := <float64>$totalPayout ?? .totalPayout
       }
     `, {
       houseBalance: update.houseBalance,
