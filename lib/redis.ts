@@ -133,6 +133,51 @@ export async function deletePlayer(id: string): Promise<void> {
   }
 }
 
+export async function updatePlayer(id: string, updates: Partial<Omit<Player, 'id'>>): Promise<Player | null> {
+  try {
+    // Build dynamic update query based on provided fields
+    const setParts: string[] = [];
+    const params: any = { id };
+
+    if (updates.name !== undefined) {
+      setParts.push('name := <str>$name');
+      params.name = updates.name;
+    }
+    
+    if (updates.balance !== undefined) {
+      setParts.push('balance := <float64>$balance');
+      params.balance = updates.balance;
+    }
+    
+    if (updates.currentTable !== undefined) {
+      if (updates.currentTable === null || updates.currentTable.trim() === '') {
+        setParts.push('currentTable := <str>{}');
+      } else {
+        setParts.push('currentTable := <str>$currentTable');
+        params.currentTable = updates.currentTable;
+      }
+    }
+
+    if (setParts.length === 0) {
+      // No updates to make, just return current player
+      return await getPlayer(id);
+    }
+
+    await client.query(`
+      UPDATE Player
+      FILTER .id = <uuid>$id
+      SET {
+        ${setParts.join(',\n        ')}
+      }
+    `, params);
+    
+    return await getPlayer(id);
+  } catch (error) {
+    console.error('Error updating player:', error);
+    return null;
+  }
+}
+
 export async function updatePlayerBalance(id: string, amount: number): Promise<Player | null> {
   try {
     await client.query(`
@@ -267,6 +312,57 @@ export async function setTable(table: Omit<Table, 'id'>): Promise<Table> {
   } catch (error) {
     console.error('Error setting table:', error);
     throw error;
+  }
+}
+
+export async function updateTable(id: string, updates: Partial<Omit<Table, 'id' | 'players'>>): Promise<Table | null> {
+  try {
+    // Build dynamic update query based on provided fields
+    const setParts: string[] = [];
+    const params: any = { id };
+
+    if (updates.name !== undefined) {
+      setParts.push('name := <str>$name');
+      params.name = updates.name;
+    }
+    
+    if (updates.game !== undefined) {
+      setParts.push('game := <str>$game');
+      params.game = updates.game;
+    }
+    
+    if (updates.minBet !== undefined) {
+      setParts.push('minBet := <float64>$minBet');
+      params.minBet = updates.minBet;
+    }
+    
+    if (updates.maxBet !== undefined) {
+      setParts.push('maxBet := <float64>$maxBet');
+      params.maxBet = updates.maxBet;
+    }
+    
+    if (updates.state !== undefined) {
+      setParts.push('state := <str>$state');
+      params.state = updates.state;
+    }
+
+    if (setParts.length === 0) {
+      // No updates to make, just return current table
+      return await getTable(id);
+    }
+
+    await client.query(`
+      UPDATE Table
+      FILTER .id = <uuid>$id
+      SET {
+        ${setParts.join(',\n        ')}
+      }
+    `, params);
+    
+    return await getTable(id);
+  } catch (error) {
+    console.error('Error updating table:', error);
+    return null;
   }
 }
 

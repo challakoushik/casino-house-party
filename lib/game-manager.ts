@@ -24,7 +24,7 @@ export function startBettingCountdown(tableId: string, io: any = null) {
   console.log(`Starting betting countdown for table ${tableId}`);
   
   // Countdown duration in seconds (60 seconds in production, 10 for testing)
-  const countdownSeconds = process.env.NODE_ENV === 'development' ? 10 : 60;
+  const countdownSeconds = 10;
   let remainingSeconds = countdownSeconds;
 
   // Publish initial countdown
@@ -86,8 +86,7 @@ async function executeGame(tableId: string) {
     }
 
     // Update table state to playing
-    table.state = 'playing';
-    await redis.setTable(table);
+    await redis.updateTable(tableId, { state: 'playing' });
     await publishToChannel(
       getTableChannel(tableId), 
       AblyEvents.GAME_STATE_CHANGED, 
@@ -130,8 +129,7 @@ async function executeGame(tableId: string) {
     }
 
     // Update table state to finished
-    table.state = 'finished';
-    await redis.setTable(table);
+    await redis.updateTable(tableId, { state: 'finished' });
     await publishToChannel(
       getTableChannel(tableId), 
       AblyEvents.GAME_STATE_CHANGED, 
@@ -429,19 +427,26 @@ async function distributePayouts(payouts: Map<string, number>, tableId: string) 
   for (const [playerId, amount] of payouts.entries()) {
     const player = await redis.getPlayer(playerId);
     if (player) {
-      player.balance += amount;
-      await redis.setPlayer(player);
+      const updatedPlayer = await redis.updatePlayer(playerId, { 
+        balance: player.balance + amount 
+      });
       
-      // Publish balance update
-      await publishToChannel(
-        getTableChannel(tableId), 
-        'player-balance-updated', 
-        {
-          playerId,
-          balance: player.balance,
-          payout: amount
-        }
-      );
+      if (updatedPlayer) {
+        // Publish balance update
+        await publishToChannel(
+          getTableChannel(tableId), 
+          'player-balance-updated', 
+          {
+            playerId,
+            balance: updatedPlayer.balance,
+            payout: amount
+          }
+        );
+      } else {
+        console.error(`Failed to update balance for player ${playerId}`);
+      }
+    } else {
+      console.error(`Player ${playerId} not found during payout distribution`);
     }
   }
 }
@@ -468,16 +473,16 @@ async function updateHouseBalance(bets: Bet[], payouts: Map<string, number>) {
  * Reset table to waiting state
  */
 async function resetTableToWaiting(tableId: string) {
-  const table = await redis.getTable(tableId);
-  if (table) {
-    table.state = 'waiting';
-    await redis.setTable(table);
+  const updatedTable = await redis.updateTable(tableId, { state: 'waiting' });
+  if (updatedTable) {
     await publishToChannel(
       getTableChannel(tableId), 
       AblyEvents.GAME_STATE_CHANGED, 
       { state: 'waiting' }
     );
     console.log(`Table ${tableId} reset to waiting state`);
+  } else {
+    console.error(`Failed to reset table ${tableId} to waiting state`);
   }
 }
 

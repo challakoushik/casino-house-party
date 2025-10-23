@@ -67,8 +67,16 @@ export async function POST(
     }
 
     // Deduct bet from player balance
-    player.balance -= amount;
-    await redis.setPlayer(player);
+    const updatedPlayer = await redis.updatePlayer(playerId, { 
+      balance: player.balance - amount 
+    });
+    
+    if (!updatedPlayer) {
+      return NextResponse.json(
+        { error: 'Failed to update player balance' },
+        { status: 500 }
+      );
+    }
 
     // Create bet object
     const bet: Bet = {
@@ -86,8 +94,13 @@ export async function POST(
     // Update table state to betting if it was waiting
     const wasWaiting = table.state === 'waiting';
     if (wasWaiting) {
-      table.state = 'betting';
-      await redis.setTable(table);
+      const updatedTable = await redis.updateTable(tableId, { state: 'betting' });
+      if (!updatedTable) {
+        return NextResponse.json(
+          { error: 'Failed to update table state' },
+          { status: 500 }
+        );
+      }
     }
 
     // Add bet to game manager
@@ -112,7 +125,7 @@ export async function POST(
     return NextResponse.json({
       success: true,
       bet,
-      remainingBalance: player.balance,
+      remainingBalance: updatedPlayer.balance,
     });
   } catch (error) {
     console.error('Bet placement error:', error);
