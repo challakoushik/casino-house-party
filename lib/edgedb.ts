@@ -1,5 +1,7 @@
 import { createClient } from 'edgedb';
 
+require('dotenv').config();
+
 // EdgeDB client configuration for Vercel edge functions
 export const client = createClient({
   instanceName: process.env.EDGEDB_INSTANCE,

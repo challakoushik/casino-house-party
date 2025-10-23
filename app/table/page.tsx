@@ -20,6 +20,26 @@ function TableScreenContent() {
   const [gameResult, setGameResult] = useState<any>(null);
   const [recentBets, setRecentBets] = useState<Array<{playerId: string, playerName: string, bet: any}>>([]);
 
+  const getGameIcon = (game: string) => {
+    switch (game) {
+      case 'roulette': return '🎡';
+      case 'baccarat': return '🃏';
+      case 'three-card-poker': return '🎴';
+      case 'blackjack': return '🂡';
+      default: return '🎰';
+    }
+  };
+
+  const getGameColor = (game: string) => {
+    switch (game) {
+      case 'roulette': return 'from-red-600 to-red-800';
+      case 'baccarat': return 'from-green-600 to-green-800';
+      case 'three-card-poker': return 'from-blue-600 to-blue-800';
+      case 'blackjack': return 'from-purple-600 to-purple-800';
+      default: return 'from-gray-600 to-gray-800';
+    }
+  };
+
   useEffect(() => {
     if (tableId) {
       loadTableData();
@@ -259,26 +279,6 @@ function TableScreenContent() {
   }
 
   const tablePlayers = players.filter(p => table.players.includes(p.id));
-
-  const getGameIcon = (game: string) => {
-    switch (game) {
-      case 'roulette': return '🎡';
-      case 'baccarat': return '🃏';
-      case 'three-card-poker': return '🎴';
-      case 'blackjack': return '🂡';
-      default: return '🎰';
-    }
-  };
-
-  const getGameColor = (game: string) => {
-    switch (game) {
-      case 'roulette': return 'from-red-600 to-red-800';
-      case 'baccarat': return 'from-green-600 to-green-800';
-      case 'three-card-poker': return 'from-blue-600 to-blue-800';
-      case 'blackjack': return 'from-purple-600 to-purple-800';
-      default: return 'from-gray-600 to-gray-800';
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-green-900 to-gray-900 p-8">
